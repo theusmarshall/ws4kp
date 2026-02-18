@@ -60,28 +60,19 @@ const getXYFromLatitudeLongitudeDoppler = (pos, offsetX, offsetY) => {
 	return { x: x * 2, y: y * 2 };
 };
 
-const removeDopplerRadarImageNoise = (RadarContext) => {
-	const RadarImageData = RadarContext.getImageData(0, 0, RadarContext.canvas.width, RadarContext.canvas.height);
+// Pure data version: operates on a Uint8ClampedArray directly
+// Can be used in both main thread and Web Worker
+const removeDopplerRadarImageNoiseData = (data) => {
+	for (let i = 0; i < data.length; i += 4) {
+		let R = data[i];
+		let G = data[i + 1];
+		let B = data[i + 2];
+		let A = data[i + 3];
 
-	// examine every pixel,
-	// change any old rgb to the new-rgb
-	for (let i = 0; i < RadarImageData.data.length; i += 4) {
-		// i + 0 = red
-		// i + 1 = green
-		// i + 2 = blue
-		// i + 3 = alpha (0 = transparent, 255 = opaque)
-		let R = RadarImageData.data[i];
-		let G = RadarImageData.data[i + 1];
-		let B = RadarImageData.data[i + 2];
-		let A = RadarImageData.data[i + 3];
-
-		// is this pixel the old rgb?
 		if ((R === 0 && G === 0 && B === 0)
 					|| (R === 0 && G === 236 && B === 236)
 					|| (R === 1 && G === 160 && B === 246)
 					|| (R === 0 && G === 0 && B === 246)) {
-			// change to your new rgb
-
 			// Transparent
 			R = 0;
 			G = 0;
@@ -139,47 +130,53 @@ const removeDopplerRadarImageNoise = (RadarContext) => {
 			A = 255;
 		}
 
-		RadarImageData.data[i] = R;
-		RadarImageData.data[i + 1] = G;
-		RadarImageData.data[i + 2] = B;
-		RadarImageData.data[i + 3] = A;
+		data[i] = R;
+		data[i + 1] = G;
+		data[i + 2] = B;
+		data[i + 3] = A;
 	}
+	return data;
+};
 
+// Pure data version: operates on two Uint8ClampedArrays directly
+// Masks radar pixels where map is dark (< 116 on all channels)
+// Returns the modified radar data
+const mergeDopplerRadarImageData = (mapData, radarData) => {
+	for (let i = 0; i < radarData.length; i += 4) {
+		if ((mapData[i] < 116 && mapData[i + 1] < 116 && mapData[i + 2] < 116)) {
+			radarData[i] = 0;
+			radarData[i + 1] = 0;
+			radarData[i + 2] = 0;
+			radarData[i + 3] = 0;
+		}
+	}
+	return radarData;
+};
+
+// Canvas-context wrappers for backward compatibility (main-thread fallback)
+const removeDopplerRadarImageNoise = (RadarContext) => {
+	const RadarImageData = RadarContext.getImageData(0, 0, RadarContext.canvas.width, RadarContext.canvas.height);
+	removeDopplerRadarImageNoiseData(RadarImageData.data);
 	RadarContext.putImageData(RadarImageData, 0, 0);
 };
 
 const mergeDopplerRadarImage = (mapContext, radarContext) => {
 	const mapImageData = mapContext.getImageData(0, 0, mapContext.canvas.width, mapContext.canvas.height);
 	const radarImageData = radarContext.getImageData(0, 0, radarContext.canvas.width, radarContext.canvas.height);
-
-	// examine every pixel,
-	// change any old rgb to the new-rgb
-	for (let i = 0; i < radarImageData.data.length; i += 4) {
-		// i + 0 = red
-		// i + 1 = green
-		// i + 2 = blue
-		// i + 3 = alpha (0 = transparent, 255 = opaque)
-
-		// is this pixel the old rgb?
-		if ((mapImageData.data[i] < 116 && mapImageData.data[i + 1] < 116 && mapImageData.data[i + 2] < 116)) {
-			// change to your new rgb
-
-			// Transparent
-			radarImageData.data[i] = 0;
-			radarImageData.data[i + 1] = 0;
-			radarImageData.data[i + 2] = 0;
-			radarImageData.data[i + 3] = 0;
-		}
-	}
-
+	mergeDopplerRadarImageData(mapImageData.data, radarImageData.data);
 	radarContext.putImageData(radarImageData, 0, 0);
-
 	mapContext.drawImage(radarContext.canvas, 0, 0);
 };
+
+// Feature detection
+const supportsOffscreenCanvas = () => typeof OffscreenCanvas !== 'undefined';
 
 export {
 	getXYFromLatitudeLongitudeDoppler,
 	getXYFromLatitudeLongitudeMap,
 	removeDopplerRadarImageNoise,
 	mergeDopplerRadarImage,
+	removeDopplerRadarImageNoiseData,
+	mergeDopplerRadarImageData,
+	supportsOffscreenCanvas,
 };

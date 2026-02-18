@@ -8,6 +8,41 @@ import WeatherDisplay from './weatherdisplay.mjs';
 import { registerDisplay, timeZone } from './navigation.mjs';
 import * as utils from './radar-utils.mjs';
 
+// Feature detection and worker setup
+const useWorker = utils.supportsOffscreenCanvas();
+let radarWorker;
+let workerMessageId = 0;
+const pendingWorkerMessages = new Map();
+
+if (useWorker) {
+	try {
+		radarWorker = new Worker(new URL('./radar-worker.mjs', import.meta.url), { type: 'module' });
+		radarWorker.addEventListener('message', (e) => {
+			const { type, id, processedData, width, height } = e.data;
+			if (type === 'result') {
+				const resolve = pendingWorkerMessages.get(id);
+				if (resolve) {
+					pendingWorkerMessages.delete(id);
+					resolve({ processedData, width, height });
+				}
+			}
+		});
+	} catch (e) {
+		console.warn('Failed to create radar worker, falling back to main thread', e);
+	}
+}
+
+// Send work to the worker and return a promise for the result
+const processRadarInWorker = (radarData, mapData, width, height) => new Promise((resolve) => {
+	const id = workerMessageId;
+	workerMessageId += 1;
+	pendingWorkerMessages.set(id, resolve);
+	radarWorker.postMessage(
+		{ type: 'processRadar', id, radarData, mapData, width, height },
+		[radarData.buffer, mapData.buffer],
+	);
+});
+
 class Radar extends WeatherDisplay {
 	constructor(navId, elemId) {
 		super(navId, elemId, 'Local Radar', true);
@@ -177,11 +212,35 @@ class Radar extends WeatherDisplay {
 			const cropContext = cropCanvas.getContext('2d', { willReadFrequently: true });
 			cropContext.imageSmoothingEnabled = false;
 			cropContext.drawImage(workingCanvas, radarSourceX, radarSourceY, (radarOffsetX * 2), (radarOffsetY * 2.33), 0, 0, 640, 367);
-			// clean the image
-			utils.removeDopplerRadarImageNoise(cropContext);
 
-			// merge the radar and map
-			utils.mergeDopplerRadarImage(context, cropContext);
+			// process the radar image (worker or main thread)
+			if (radarWorker) {
+				// Off-main-thread: extract pixel data and send to worker
+				const cropImageData = cropContext.getImageData(0, 0, 640, 367);
+				const mapImageData = context.getImageData(0, 0, 640, 367);
+
+				const result = await processRadarInWorker(
+					cropImageData.data,
+					mapImageData.data,
+					640,
+					367,
+				);
+
+				// Put the processed radar data back onto the crop canvas
+				const processedImageData = new ImageData(
+					new Uint8ClampedArray(result.processedData),
+					result.width,
+					result.height,
+				);
+				cropContext.putImageData(processedImageData, 0, 0);
+
+				// Draw processed radar onto the map canvas
+				context.drawImage(cropCanvas, 0, 0);
+			} else {
+				// Main-thread fallback: use canvas-context wrappers
+				utils.removeDopplerRadarImageNoise(cropContext);
+				utils.mergeDopplerRadarImage(context, cropContext);
+			}
 
 			const elem = this.fillTemplate('frame', { map: { type: 'img', src: canvas.toDataURL() } });
 

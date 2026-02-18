@@ -1,15 +1,13 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import 'dotenv/config';
-import {
-	src, dest, series, parallel,
-} from 'gulp';
+import gulp from 'gulp';
 import concat from 'gulp-concat';
 import terser from 'gulp-terser';
 import ejs from 'gulp-ejs';
 import rename from 'gulp-rename';
 import htmlmin from 'gulp-html-minifier-terser';
 import { deleteAsync } from 'del';
-import s3Upload from 'gulp-s3-uploader';
+import awspublish from 'gulp-awspublish';
 import webpack from 'webpack-stream';
 import TerserPlugin from 'terser-webpack-plugin';
 import { readFile } from 'fs/promises';
@@ -18,6 +16,10 @@ import file from 'gulp-file';
 // get cloudfront
 import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
 import reader from '../src/playlist-reader.mjs';
+
+const {
+	src, dest, series, parallel,
+} = gulp;
 
 const clean = () => deleteAsync(['./dist/**/*', '!./dist/readme.txt']);
 
@@ -127,27 +129,26 @@ const otherFiles = [
 const copyOtherFiles = () => src(otherFiles, { base: 'server/', encoding: false })
 	.pipe(dest('./dist'));
 
-const s3 = s3Upload({
-	useIAM: true,
-}, {
+const publisher = awspublish.create({
 	region: 'us-east-1',
+	params: {
+		Bucket: process.env.BUCKET,
+	},
 });
 const uploadSources = [
 	'dist/**',
 	'!dist/**/*.map',
 ];
 const upload = () => src(uploadSources, { base: './dist', encoding: false })
-	.pipe(s3({
-		Bucket: process.env.BUCKET,
-		StorageClass: 'STANDARD',
-		maps: {
-			CacheControl: (keyname) => {
-				if (keyname.indexOf('index.html') > -1) return 'max-age=300'; // 10 minutes
-				if (keyname.indexOf('.mp3') > -1) return 'max-age=31536000'; // 1 year for mp3 files
-				return 'max-age=2592000'; // 1 month
-			},
+	.pipe(awspublish.gzip())
+	.pipe(publisher.publish({
+		'Cache-Control': (f) => {
+			if (f.relative.indexOf('index.html') > -1) return 'max-age=300'; // 10 minutes
+			if (f.relative.indexOf('.mp3') > -1) return 'max-age=31536000'; // 1 year for mp3 files
+			return 'max-age=2592000'; // 1 month
 		},
-	}));
+	}))
+	.pipe(publisher.sync());
 
 const imageSources = [
 	'server/fonts/**',
@@ -155,12 +156,7 @@ const imageSources = [
 	'!server/images/gimp/**',
 ];
 const uploadImages = () => src(imageSources, { base: './server', encoding: false })
-	.pipe(
-		s3({
-			Bucket: process.env.BUCKET,
-			StorageClass: 'STANDARD',
-		}),
-	);
+	.pipe(publisher.publish());
 
 const invalidate = () => cloudfront.send(new CreateInvalidationCommand({
 	DistributionId: process.env.DISTRIBUTION_ID,

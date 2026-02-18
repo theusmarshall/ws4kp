@@ -39,7 +39,7 @@ class LatestObservations extends WeatherDisplay {
 		let lastStation = Math.min(regionalStations.length, 7);
 		let firstStation = 0;
 		while (actualConditions.length < 7 && (lastStation) <= regionalStations.length) {
-			// eslint-disable-next-line no-await-in-loop
+			 
 			const someStations = await getStations(regionalStations.slice(firstStation, lastStation));
 
 			actualConditions.push(...someStations);
@@ -142,7 +142,7 @@ const getStations = async (stations) => {
 				StationId: station.id,
 				city: station.city,
 			};
-		} catch (error) {
+		} catch {
 			console.log(`Unable to get latest observations for ${station.id}`);
 			return false;
 		}

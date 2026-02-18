@@ -1,4 +1,4 @@
-/* eslint-disable default-case */
+ 
 import { json } from './utils/fetch.mjs';
 
 const KEYS = {

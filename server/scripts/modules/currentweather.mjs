@@ -42,7 +42,7 @@ class CurrentWeather extends WeatherDisplay {
 			stationNum += 1;
 			try {
 				// station observations
-				// eslint-disable-next-line no-await-in-loop
+				 
 				observations = await json(`${station.id}/observations`, {
 					cors: true,
 					data: {

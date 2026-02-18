@@ -24,14 +24,14 @@ If you would like to display weather information for international locations (ou
 - [`ws4kp-international`](https://github.com/mwood77/ws4kp-international)
 
 ## Run Your WeatherStar
-There are a lot of CORS considerations and issues with api.weather.gov that are easiest to deal with by running a local server to see this in action (or use the live link above). You'll need Node.js >12.0 to run the local server.
+There are a lot of CORS considerations and issues with api.weather.gov that are easiest to deal with by running a local server to see this in action (or use the live link above). You'll need Node.js >=20 to run the local server.
 
 To run via Node locally:
 ```
 git clone https://github.com/netbymatt/ws4kp.git
 cd ws4kp
 npm i
-node index.js
+node index.mjs
 ```
 
 To run via Docker: 
