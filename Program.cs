@@ -21,7 +21,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 var fileProvider = new PhysicalFileProvider(Directory.GetCurrentDirectory());
 app.UseDefaultFiles(new DefaultFilesOptions

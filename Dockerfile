@@ -20,7 +20,11 @@ COPY --from=build /src/index.html ./
 COPY --from=build /src/twc3.html ./
 COPY --from=build /src/manifest.json ./
 COPY --from=build /src/web.config ./
+# Create lowercase symlinks for case-sensitive Linux filesystem
+RUN ln -s Images images && ln -s Scripts scripts && ln -s Styles styles && ln -s Fonts fonts && ln -s Audio audio
+RUN ln -s Basemap2.png Images/basemap2.png && ln -s Basemap.png Images/basemap.png
 
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080

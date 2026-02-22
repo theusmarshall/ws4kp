@@ -75,6 +75,16 @@ namespace ws4kp.Middleware
                 case "battaglia.ddns.net":
                     okToProcessRequest = true;
                     break;
+                default:
+                    // Allow private/LAN IP ranges and .local mDNS hostnames
+                    if (hostName.StartsWith("192.168.") ||
+                        hostName.StartsWith("10.") ||
+                        hostName.StartsWith("172.") ||
+                        hostName.EndsWith(".local"))
+                    {
+                        okToProcessRequest = true;
+                    }
+                    break;
             }
 
             if (okToProcessRequest == false)
@@ -144,8 +154,7 @@ namespace ws4kp.Middleware
                 return true;
             }
 
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls
-                | SecurityProtocolType.Tls12
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12
                 | SecurityProtocolType.Tls13;
 
             var client = new WebClient();
