@@ -13749,23 +13749,21 @@ var LoadAudio = function(Url)
 
     if (window.AudioContext)
     {
-        if (_AudioContext)
-        {
-            _AudioContext.close();
-            _AudioContext = null;
-            //_AudioContext = new AudioContext();
-            //_AudioContext.ontimeupdate = AudioOnTimeUpdate;
-            //_AudioContext.onplay = RefreshStateOfMusicAudio;
-            //_AudioContext.onpause = RefreshStateOfMusicAudio;
-            //_AudioContext.onplaying = RefreshStateOfMusicAudio;
-            //_AudioContext.onstatechange = RefreshStateOfMusicAudio;
-        }
         if (_AudioBufferSource)
         {
-            _AudioBufferSource.stop();
+            try { _AudioBufferSource.stop(); } catch(e) {}
+            _AudioBufferSource.disconnect();
             _AudioBufferSource = null;
         }
-        _AudioContext = new AudioContext();
+        if (_AudioGain)
+        {
+            _AudioGain.disconnect();
+            _AudioGain = null;
+        }
+        if (!_AudioContext)
+        {
+            _AudioContext = new AudioContext();
+        }
         _AudioDuration = 0;
         _AudioCurrentTime = 0;
 
